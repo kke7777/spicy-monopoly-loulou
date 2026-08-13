@@ -163,9 +163,10 @@ npm install
 - `roll`：每轮掷骰，也会结算上一轮悬着的任务/过路费/对决。
 - `game_action`：所有非掷骰玩法操作，例如 `skip`、`swap`、`duel_result`、`final_result`、功能卡、身份事件、淫纹猜测。
 - `game_info`：只读查询，例如 `state`、`shop`、`list_games`、`pair_history`。
+- `render_game`：可选的 MCP Apps 美化界面；读取权威局面，并把系统提示、任务卡和角色剧情分层显示。
 - `game_admin`：少用的管理动作，例如 `delete_game`、`clear_pair_history`、`submit_feedback`。
 
-MCP 菜单刻意压到 6 个工具，避免客户端每轮都把一大串细碎工具 schema 塞进上下文。完整能力仍在 `game_action` / `game_info` / `game_admin` 的 `action` 或 `query` 参数里。
+MCP 菜单保持为 7 个高层工具，避免客户端每轮都把一大串细碎工具 schema 塞进上下文。完整游戏能力仍在 `game_action` / `game_info` / `game_admin` 的 `action` 或 `query` 参数里；`render_game` 只负责展示，不会擅自结算或推进回合。
 
 工具返回也默认瘦身：普通开局、掷骰、操作只返回 AI 下一步必须用的字段，不附完整后端 JSON；但 `board`、`status`、骰子/格子、监狱/睡眠/终局标记、过路费/对决/功能卡关键字段会保留，方便 AI 按 API 玩法继续主持。需要完整局面时再调用 `game_info` 的 `state`。
 
@@ -182,6 +183,7 @@ MCP 菜单刻意压到 6 个工具，避免客户端每轮都把一大串细碎�
 - `roll` 必须传 `game_id`，不要传玩家名；轮到谁由游戏自动决定。
 - `roll` 的结算参数只在上一轮返回提示时才传：`task=done/skip`、`toll=pay/serve`、`super_action=done/buyout`、`guess=大/小`。
 - `game_action` 必须传 `action` 和 `game_id`；大部分 action 还要传 `who`，必须是开局时的玩家原名。
+- 想显示美化界面时，在 `new_game` / `roll` / `game_action` 返回后调用 `render_game`：传真实 `game_id`，把刚才返回的系统与任务字段原样放进对应参数；AI 自己写的角色剧情只能放在 `story_text`，不能作为引擎事实。
 - 如果参数不对，工具通常会返回正常 MCP output：`ok:false`、`error`、`action_needed`，AI 应该读错误信息后重新调用，不要假装成功。
 
 ## 给 AI 的一句话
