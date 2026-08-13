@@ -32,6 +32,7 @@ const MCP_ALLOWED_HOSTS = (process.env.SPICY_MONOPOLY_MCP_ALLOWED_HOSTS || "")
 // clients drop them on the floor, so this costs a player nothing.
 const MCP_SSE_KEEPALIVE_MS = Number.parseInt(process.env.SPICY_MONOPOLY_MCP_SSE_KEEPALIVE_MS || "25000", 10);
 const MCP_RULES_ACK = "mcp-host-v2026-07-06";
+const GAME_UI_URI = "ui://spicy-monopoly/game-board-v1.html";
 
 function ensureMcpAcceptHeader(req) {
   const desired = "application/json, text/event-stream";
@@ -382,6 +383,7 @@ function slimData(data, context = {}) {
     "base_url", "flow", "host_guide", "setup_questions", "safety_rules",
     "turn_loop", "action_map", "identity_action_map", "card_rules",
     "host_rules", "required_rules_ack", "rules_ack", "mcp_resources",
+    "view", "event_title", "system_text", "speaker", "story",
   ];
   for (const key of copyKeys) {
     if (data[key] !== undefined && data[key] !== null && data[key] !== "") slim[key] = data[key];
@@ -492,6 +494,7 @@ const hostRules = [
   "Paste the board verbatim, exactly as the tool returned it. Never redraw it as your own table or ASCII art: re-typing 20 tiles, both positions, coins and hands from memory gets them wrong, and a wrong board is worse than none.",
   "Every new game needs setup confirmation. A remembered rules_ack only proves you know the rules; setup_confirmed means this specific game was explained and confirmed.",
   "Keep the game_id: announce it to players once right after new_game (e.g. 局号 xxxxxxxx) so it stays in the visible chat. If you ever lose it, do NOT open a new game — recover it via game_info query=pair_history (returns last_game_id).",
+  "When players want the styled board, call render_game after the engine action. Copy system/task fields from the latest engine result, write story only for your own roleplay, and never use presentation text as game state.",
 ];
 const setupQuestions = [
   "Before new_game, explain: two-player board game, take turns rolling on a 20-tile board, do tasks to earn coins/territory, highest coins wins final command.",
@@ -552,6 +555,7 @@ const cardRules = [
   "Buyout (action='buyout_super') only applies to a pending 🔥 super task. It is refused with no charge if there is no pending task, or if the task is an ordinary/🫣shame one — those are skipped for free with action='skip' instead.",
 ];
 const mcpResources = [
+  GAME_UI_URI,
   "spicy-monopoly://manual/mcp-host",
   "spicy-monopoly://manual/ai",
   "spicy-monopoly://manual/human",
@@ -570,6 +574,7 @@ const newGameHostGuide = [
   "Every turn: call roll(game_id), paste board verbatim (copy it as-is; never redraw it yourself), read the task IN FULL and follow hint/action_needed, then wait for players to actually do it before rolling again — choosing 'do the task' is the start, not completion; do not fast-forward the human's task by rolling right after they agree.",
   "If anyone refuses/stops/says redline/404, use skip or stop immediately; do not argue.",
   "Never invent hidden state. On errors, show the parameter error and retry with corrected args.",
+  "When styled UI is enabled, call render_game after new_game/roll/game_action. Pass the engine's latest task fields unchanged and put your roleplay only in story_text.",
 ];
 const newGameDescription = [
   "Start a new two-player game only after setup is explained and confirmed. If you only have the bare MCP URL, first call monopoly_help, learn the MCP host rules, and copy its rules_ack.",
@@ -631,6 +636,7 @@ tool("monopoly_help", {
     "Call roll for each turn. If the previous turn had pending work, pass task/toll/super_action/duel_winner only when the result asks for it.",
     "Use game_action for side actions such as skip, swap, duel_result, cards, identity events, or final_result.",
     "Use game_info for read-only state/shop/list/history queries.",
+    "Use render_game after an engine result when players want the styled board, task card, and character story bubble.",
     "Use game_admin only for delete, clear history, or voluntary feedback.",
   ],
   env: {
@@ -899,6 +905,54 @@ tool("game_info", {
   }
 });
 
+tool("render_game", {
+  title: "美化游戏界面",
+  description: [
+    "Render the current game as a styled inline UI with player status, board, system prompt, task card, and a separate character story bubble.",
+    "Call this only after new_game, roll, or game_action. Pass the exact game_id so this tool fetches authoritative board/coin/position state itself.",
+    "Copy system_text and all task_* fields from the latest engine result without rewriting game facts. story_text is presentation-only roleplay written by the host and never changes game state.",
+    "Keep the original engine tools as the source of truth. Rendering does not complete, skip, swap, settle, or roll a task.",
+  ].join(" "),
+  inputSchema: {
+    game_id: z.string().describe("Exact game_id returned by new_game."),
+    event_title: z.string().default("本回合").describe("Short visual heading, such as 咲咲的第 1 回合."),
+    system_text: z.string().default("").describe("System-facing dice/result/hint text copied from the latest engine result."),
+    task_text: z.string().default("").describe("Exact task/truth/toll/duel text from the latest engine result."),
+    task_strength: z.string().default("").describe("Exact task strength label, when present."),
+    task_type: z.string().default("").describe("Exact task type label, when present."),
+    task_kink: z.string().default("").describe("Exact task kink label, when present."),
+    task_reward: z.string().default("").describe("Exact task reward label, when present."),
+    speaker: z.string().default("露易丝").describe("Character name shown above the story bubble."),
+    story_text: z.string().default("").describe("Host-authored character roleplay. Presentation only; never treated as engine state."),
+  },
+  annotations: { readOnlyHint: true, openWorldHint: true },
+  _meta: {
+    ui: { resourceUri: GAME_UI_URI },
+    "openai/outputTemplate": GAME_UI_URI,
+    "openai/toolInvocation/invoking": "正在布置游戏界面…",
+    "openai/toolInvocation/invoked": "游戏界面已更新",
+  },
+}, async (args) => {
+  const game = encodeURIComponent(required(args, "game_id"));
+  const state = await request("GET", `/state/${game}`);
+  return {
+    ...state,
+    game_id: args.game_id,
+    view: "styled_game",
+    event_title: args.event_title,
+    system_text: args.system_text,
+    speaker: args.speaker,
+    story: args.story_text,
+    task: compact({
+      "内容": args.task_text,
+      "强度": args.task_strength,
+      "玩法类型": args.task_type,
+      kink: args.task_kink,
+      "完成奖励": args.task_reward,
+    }),
+  };
+});
+
 tool("game_admin", {
   title: "管理与反馈",
   description: adminDescription,
@@ -951,6 +1005,26 @@ const manualFiles = [
   ["spicy-monopoly://readme", "README.md", "项目 README"],
 ];
 
+server.registerResource("spicy-monopoly-game-ui", GAME_UI_URI, {
+  title: "咲咲与露易丝的大富翁界面",
+  description: "Styled game board, task card, system prompt, and character story bubble.",
+  mimeType: "text/html;profile=mcp-app",
+}, async () => {
+  const [template, avatar] = await Promise.all([
+    readFile(join(__dirname, "game-widget.html"), "utf8"),
+    readFile(join(__dirname, "assets", "loulou-avatar.png")),
+  ]);
+  const avatarDataUri = `data:image/png;base64,${avatar.toString("base64")}`;
+  return {
+    contents: [{
+      uri: GAME_UI_URI,
+      mimeType: "text/html;profile=mcp-app",
+      text: template.replaceAll("__LOULOU_AVATAR_DATA_URI__", avatarDataUri),
+      _meta: { ui: { prefersBorder: false } },
+    }],
+  };
+});
+
 for (const [uri, file, title] of manualFiles) {
   server.registerResource(file, uri, {
     title,
@@ -985,6 +1059,7 @@ server.registerPrompt("start_spicy_monopoly", {
         "For each turn, call roll(game_id only), paste board verbatim (copy as-is, never redraw it), read the task in full and follow hint/action_needed, then wait for players to actually do it before rolling again. Choosing 'do the task' is the start, not completion — do not roll (which settles it) just because they agreed; the human's task especially needs real space.",
         "On a final_result tie, players may break it with roll tiebreak=true (one more round each), or accept the tie with a final command from each side.",
         "If a player says stop, redline, 404, or does not want a task, call game_action with action='skip' immediately without asking them to justify it.",
+        "If the players want the styled interface, call render_game after each engine action. Copy engine facts into system/task fields unchanged; put only your own roleplay in story_text.",
         player_names ? `Player/setup notes: ${player_names}` : "",
       ].filter(Boolean).join("\n"),
     },

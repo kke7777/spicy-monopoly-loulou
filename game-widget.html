@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>咲咲与露易丝的大富翁</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #3c3448;
+      --muted: #776f82;
+      --panel: rgba(255, 252, 255, 0.9);
+      --line: rgba(119, 96, 145, 0.16);
+      --purple: #8269a9;
+      --purple-soft: #eee7f7;
+      --pink: #d986a5;
+      --pink-soft: #fff0f5;
+      --blue-soft: #eef6ff;
+      --shadow: 0 16px 36px rgba(90, 66, 111, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 8px;
+      color: var(--ink);
+      font: 14px/1.55 ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: transparent;
+    }
+
+    button { font: inherit; }
+
+    .game-shell {
+      position: relative;
+      overflow: hidden;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at 92% 2%, rgba(195, 173, 227, .38), transparent 30%),
+        radial-gradient(circle at 4% 82%, rgba(248, 190, 211, .26), transparent 34%),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .game-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(130, 105, 169, .11) 1px, transparent 1px);
+      background-size: 18px 18px;
+      mask-image: linear-gradient(to bottom, #000, transparent 32%);
+    }
+
+    .hero, .players, .board-card, .message-card, .actions { position: relative; }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .hero-avatar, .story-avatar {
+      flex: 0 0 auto;
+      overflow: hidden;
+      border: 3px solid rgba(255,255,255,.9);
+      border-radius: 50%;
+      background: #f2ecf7;
+      box-shadow: 0 6px 18px rgba(101, 75, 124, .2);
+    }
+
+    .hero-avatar { width: 62px; height: 62px; }
+    .story-avatar { width: 48px; height: 48px; }
+    .hero-avatar img, .story-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 34%; }
+
+    .hero-copy { min-width: 0; flex: 1; }
+    .eyebrow { color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 1px 0 2px; font-size: 20px; line-height: 1.2; }
+    .subline { color: var(--muted); font-size: 12px; }
+
+    .safety {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border: 1px solid rgba(197, 91, 111, .22);
+      border-radius: 999px;
+      color: #9e465a;
+      background: rgba(255, 239, 243, .88);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .players {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .player {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,.68);
+    }
+
+    .player-name { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; }
+    .player-stats { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .coin { color: #ad7625; font-weight: 800; }
+
+    .board-card {
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(252, 249, 255, .78);
+    }
+
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .section-title { font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+    .progress { color: var(--muted); font-size: 11px; }
+
+    .board-scroll { overflow-x: auto; padding: 2px 0 5px; scrollbar-width: thin; }
+    .board-row { display: grid; grid-auto-flow: column; grid-auto-columns: 46px; gap: 5px; width: max-content; }
+    .tile {
+      display: grid;
+      place-items: center;
+      min-height: 42px;
+      padding: 3px;
+      border: 1px solid rgba(126, 105, 153, .13);
+      border-radius: 12px;
+      background: rgba(255,255,255,.88);
+      font-size: 16px;
+      box-shadow: 0 3px 9px rgba(81, 62, 98, .06);
+    }
+    .tile.active { border-color: rgba(217, 134, 165, .66); background: linear-gradient(145deg, #fff3f7, #f2ebfb); box-shadow: 0 4px 13px rgba(202, 111, 151, .2); }
+
+    .message-card {
+      margin-top: 10px;
+      padding: 13px 14px;
+      border-radius: 18px;
+      white-space: pre-wrap;
+    }
+
+    .system-card { border: 1px solid rgba(92, 141, 184, .17); background: var(--blue-soft); }
+    .system-card .label { color: #527ea3; }
+    .task-card { border: 1px solid rgba(194, 111, 148, .22); background: linear-gradient(145deg, var(--pink-soft), #f4effb); }
+    .task-card .label { color: #ad5378; }
+    .label { margin-bottom: 5px; font-size: 11px; font-weight: 900; letter-spacing: .1em; }
+    .task-text { font-size: 15px; line-height: 1.68; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .chip { padding: 3px 8px; border-radius: 999px; color: #765982; background: rgba(255,255,255,.72); font-size: 11px; }
+
+    .story-card {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 10px;
+      border: 1px solid rgba(126, 105, 169, .2);
+      background: linear-gradient(145deg, #f2ebfa, #fff9fc);
+    }
+    .story-speaker { margin-bottom: 3px; color: var(--purple); font-size: 12px; font-weight: 900; }
+    .story-text { line-height: 1.72; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    .actions button {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      background: rgba(255,255,255,.82);
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .actions button:hover { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(88, 66, 105, .12); }
+    .actions .primary { border-color: transparent; color: white; background: linear-gradient(135deg, #8a70b2, #ce7d9e); }
+    .actions .danger { color: #a63e55; background: #fff0f3; }
+
+    .empty { color: var(--muted); font-style: italic; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 520px) {
+      body { padding: 4px; }
+      .game-shell { padding: 14px; border-radius: 22px; }
+      .hero-avatar { width: 54px; height: 54px; }
+      h1 { font-size: 17px; }
+      .safety { padding: 6px 8px; }
+      .players { grid-template-columns: 1fr; }
+      .player { padding: 9px 11px; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #f3edf7;
+        --muted: #b9afc1;
+        --panel: rgba(36, 31, 43, .94);
+        --line: rgba(214, 193, 229, .14);
+        --purple-soft: #443951;
+        --pink-soft: #4a3540;
+        --blue-soft: #293946;
+        --shadow: 0 16px 36px rgba(0,0,0,.28);
+      }
+      .player, .board-card, .tile, .actions button { background: rgba(61, 53, 70, .82); }
+      .tile.active { background: linear-gradient(145deg, #563b49, #423653); }
+      .task-card { background: linear-gradient(145deg, #4a3540, #3c3548); }
+      .story-card { background: linear-gradient(145deg, #40364d, #3a3039); }
+      .safety { color: #ffb4c2; background: rgba(114, 50, 67, .36); }
+      .chip { background: rgba(255,255,255,.08); color: #dfcde7; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <header class="hero">
+      <div class="hero-avatar"><img alt="露易丝头像" data-loulou-avatar /></div>
+      <div class="hero-copy">
+        <div class="eyebrow">Spicy Monopoly</div>
+        <h1>咲咲与露易丝的大富翁</h1>
+        <div class="subline">局号 <span id="game-id">—</span> · <span id="turn-line">等待同步</span></div>
+      </div>
+      <div class="safety" title="安全词：立即停止，不追问">404 安全词</div>
+    </header>
+
+    <section id="players" class="players" aria-label="玩家状态"></section>
+
+    <section class="board-card" aria-label="游戏棋盘">
+      <div class="section-head">
+        <div class="section-title">🎲 当前棋盘</div>
+        <div id="progress" class="progress"></div>
+      </div>
+      <div class="board-scroll"><div id="board" class="board-row"></div></div>
+    </section>
+
+    <section id="system-card" class="message-card system-card" hidden>
+      <div class="label">SYSTEM · 系统提示</div>
+      <div id="system-text"></div>
+    </section>
+
+    <section id="task-card" class="message-card task-card" hidden>
+      <div class="label">TASK · 本回合任务</div>
+      <div id="task-text" class="task-text"></div>
+      <div id="task-chips" class="chips"></div>
+    </section>
+
+    <section id="story-card" class="message-card story-card" hidden>
+      <div class="story-avatar"><img alt="露易丝头像" data-loulou-avatar /></div>
+      <div>
+        <div id="story-speaker" class="story-speaker">露易丝</div>
+        <div id="story-text" class="story-text"></div>
+      </div>
+    </section>
+
+    <nav class="actions" aria-label="游戏快捷操作">
+      <button class="primary" data-prompt="继续当前大富翁任务剧情，不要掷骰子，也不要提前结算。">继续剧情</button>
+      <button data-prompt="当前大富翁任务已经真正完成，请先按规则结算，再等待我决定是否掷下一轮。">完成任务</button>
+      <button data-prompt="我不想做当前大富翁任务，请立即调用 game_action 免费跳过，不需要追问理由。">免费跳过</button>
+      <button data-prompt="我想把当前大富翁任务换掉，请按规则调用 game_action 换一道。">换一道</button>
+      <button class="danger" data-prompt="404">404</button>
+    </nav>
+  </main>
+
+  <script>
+    const loulouAvatar = "__LOULOU_AVATAR_DATA_URI__";
+    document.querySelectorAll("[data-loulou-avatar]").forEach((image) => { image.src = loulouAvatar; });
+    const byId = (id) => document.getElementById(id);
+
+    function text(value) {
+      if (value === undefined || value === null) return "";
+      return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function unwrap(value) {
+      return value?.structuredContent
+        || value?.toolOutput?.structuredContent
+        || value?.mcp_tool_result?.structuredContent
+        || value?.mcpToolResult?.structuredContent
+        || value;
+    }
+
+    function renderPlayers(data) {
+      const names = Array.from(new Set([
+        ...Object.keys(data.positions || {}),
+        ...Object.keys(data.coins || {}),
+        ...Object.keys(data.laps || {}),
+      ]));
+      const root = byId("players");
+      root.replaceChildren();
+
+      if (!names.length) {
+        const empty = document.createElement("div");
+        empty.className = "player empty";
+        empty.textContent = "玩家状态将在开局后显示";
+        root.append(empty);
+        return;
+      }
+
+      for (const name of names) {
+        const card = document.createElement("article");
+        card.className = "player";
+        const head = document.createElement("div");
+        head.className = "player-name";
+        const marker = /露易丝|露露/.test(name) ? "🪻" : /咲咲/.test(name) ? "🐶" : "🎲";
+        const playerName = document.createElement("span");
+        playerName.textContent = `${marker} ${name}`;
+        const coin = document.createElement("span");
+        coin.className = "coin";
+        coin.textContent = `💰${data.coins?.[name] ?? "—"}`;
+        head.append(playerName, coin);
+
+        const stats = document.createElement("div");
+        stats.className = "player-stats";
+        stats.textContent = `位置 ${data.positions?.[name] ?? "—"} · 第 ${(Number(data.laps?.[name] ?? 0) + 1)} 圈`;
+        card.append(head, stats);
+        root.append(card);
+      }
+    }
+
+    function renderBoard(boardText) {
+      const value = text(boardText);
+      const firstLine = value.split("\n")[0] || "";
+      const progressMatch = firstLine.match(/〔([^〕]+)〕/);
+      byId("progress").textContent = progressMatch ? progressMatch[1] : "";
+
+      const cells = Array.from(firstLine.matchAll(/［([^］]*)］/g), (match) => match[1]);
+      const root = byId("board");
+      root.replaceChildren();
+      if (!cells.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "棋盘将在开局后显示";
+        root.append(empty);
+        return;
+      }
+      for (const value of cells) {
+        const cell = document.createElement("div");
+        cell.className = /🐶|🪻|🔵|🔴/.test(value) ? "tile active" : "tile";
+        cell.textContent = value || "·";
+        root.append(cell);
+      }
+    }
+
+    function renderTask(task) {
+      const card = byId("task-card");
+      if (!task || !Object.keys(task).length) {
+        card.hidden = true;
+        return;
+      }
+      const body = task["内容"] || task.content || task.title || task.name || task.desc || "";
+      byId("task-text").textContent = text(body);
+      const chips = byId("task-chips");
+      chips.replaceChildren();
+      for (const [label, value] of [
+        ["强度", task["强度"] || task.strength],
+        ["类型", task["玩法类型"] || task.type],
+        ["玩法", task.kink],
+        ["奖励", task["完成奖励"] || task.reward],
+      ]) {
+        if (!value || value === "-") continue;
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = `${label} · ${text(value)}`;
+        chips.append(chip);
+      }
+      card.hidden = !body;
+    }
+
+    function render(raw) {
+      const data = unwrap(raw);
+      if (!data || typeof data !== "object") return;
+      byId("game-id").textContent = data.game_id || "—";
+      byId("turn-line").textContent = data.event_title || `当前轮次 ${data.turn ?? "—"}`;
+      renderPlayers(data);
+      renderBoard(data.board);
+
+      const systemText = data.system_text || data.say || data.result || data.status || "";
+      byId("system-text").textContent = text(systemText);
+      byId("system-card").hidden = !systemText;
+
+      renderTask(data.task);
+
+      const story = data.story || "";
+      byId("story-speaker").textContent = data.speaker || "露易丝";
+      byId("story-text").textContent = text(story);
+      byId("story-card").hidden = !story;
+    }
+
+    let nextRequestId = 1;
+    const pendingRequests = new Map();
+    function request(method, params) {
+      const id = nextRequestId++;
+      window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+      return new Promise((resolve, reject) => pendingRequests.set(id, { resolve, reject }));
+    }
+
+    async function sendPrompt(prompt) {
+      if (window.openai?.sendFollowUpMessage) {
+        await window.openai.sendFollowUpMessage({ prompt, scrollToBottom: true });
+        return;
+      }
+      await request("ui/message", {
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+      });
+    }
+
+    document.querySelectorAll("[data-prompt]").forEach((button) => {
+      button.addEventListener("click", () => sendPrompt(button.dataset.prompt));
+    });
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+      if (message.id !== undefined && pendingRequests.has(message.id)) {
+        const pending = pendingRequests.get(message.id);
+        pendingRequests.delete(message.id);
+        if (message.error) pending.reject(message.error);
+        else pending.resolve(message.result);
+        return;
+      }
+      if (message.method === "ui/notifications/tool-result") render(message.params?.structuredContent || message.params);
+    }, { passive: true });
+
+    window.addEventListener("openai:set_globals", (event) => {
+      render(event.detail?.globals?.toolOutput);
+    });
+
+    render(window.openai?.toolOutput || window.openai?.toolResponseMetadata);
+  </script>
+</body>
+</html>
