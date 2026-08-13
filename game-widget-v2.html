@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>咲咲与露易丝的大富翁</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #3c3448;
+      --muted: #776f82;
+      --panel: rgba(255, 252, 255, 0.9);
+      --line: rgba(119, 96, 145, 0.16);
+      --purple: #8269a9;
+      --purple-soft: #eee7f7;
+      --pink: #d986a5;
+      --pink-soft: #fff0f5;
+      --blue-soft: #eef6ff;
+      --green-soft: #effaf5;
+      --danger: #a63e55;
+      --shadow: 0 16px 36px rgba(90, 66, 111, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 8px;
+      color: var(--ink);
+      font: 14px/1.55 ui-rounded, "SF Pro Rounded", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background: transparent;
+    }
+
+    button { font: inherit; }
+
+    .game-shell {
+      position: relative;
+      overflow: hidden;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at 92% 2%, rgba(195, 173, 227, .38), transparent 30%),
+        radial-gradient(circle at 4% 82%, rgba(248, 190, 211, .26), transparent 34%),
+        var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .game-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(130, 105, 169, .11) 1px, transparent 1px);
+      background-size: 18px 18px;
+      mask-image: linear-gradient(to bottom, #000, transparent 32%);
+    }
+
+    .hero, .players, .turn-console, .board-card, .message-card, .actions, .utility-panel { position: relative; }
+
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .hero-avatar, .story-avatar {
+      flex: 0 0 auto;
+      overflow: hidden;
+      border: 3px solid rgba(255,255,255,.9);
+      border-radius: 50%;
+      background: #f2ecf7;
+      box-shadow: 0 6px 18px rgba(101, 75, 124, .2);
+    }
+
+    .hero-avatar { width: 62px; height: 62px; }
+    .story-avatar { width: 48px; height: 48px; }
+    .hero-avatar img, .story-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 34%; }
+
+    .hero-copy { min-width: 0; flex: 1; }
+    .eyebrow { color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 1px 0 2px; font-size: 20px; line-height: 1.2; }
+    .subline { color: var(--muted); font-size: 12px; }
+
+    .safety {
+      flex: 0 0 auto;
+      padding: 7px 10px;
+      border: 1px solid rgba(197, 91, 111, .22);
+      border-radius: 999px;
+      color: #9e465a;
+      background: rgba(255, 239, 243, .88);
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .icon-button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--muted);
+      background: rgba(255,255,255,.72);
+      cursor: pointer;
+    }
+
+    .players {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .player {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,.68);
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .player.current {
+      border-color: rgba(130, 105, 169, .52);
+      box-shadow: 0 7px 18px rgba(100, 77, 126, .12);
+      transform: translateY(-1px);
+    }
+
+    .player-name { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; }
+    .player-stats { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .player-identity { margin-top: 5px; color: var(--purple); font-size: 12px; font-weight: 800; }
+    .hand { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .hand button { padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: rgba(255,255,255,.72); font-size: 11px; cursor: pointer; }
+    .coin { color: #ad7625; font-weight: 800; }
+
+    .turn-console {
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding: 12px 14px;
+      border: 1px solid rgba(130, 105, 169, .18);
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(240, 233, 249, .9), rgba(255, 244, 248, .82));
+    }
+
+    .die {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      border: 1px solid rgba(126, 105, 153, .18);
+      border-radius: 18px;
+      color: #745a97;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 8px 18px rgba(90, 66, 111, .13);
+      font-size: 40px;
+      line-height: 1;
+      transform: rotate(0deg);
+    }
+
+    .die.rolling { animation: dice-tumble .42s linear infinite; }
+    @keyframes dice-tumble {
+      0% { transform: rotate(-8deg) scale(.94); }
+      50% { transform: rotate(9deg) scale(1.06); }
+      100% { transform: rotate(-8deg) scale(.94); }
+    }
+
+    .turn-title { font-size: 16px; font-weight: 900; }
+    .turn-hint { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .live-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #69b58f; box-shadow: 0 0 0 4px rgba(105,181,143,.12); }
+
+    .board-card {
+      margin-bottom: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(252, 249, 255, .78);
+    }
+
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .section-title { font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+    .progress { color: var(--muted); font-size: 11px; }
+
+    .board-scroll { overflow-x: auto; padding: 2px 0 5px; scrollbar-width: thin; }
+    .board-row { display: grid; grid-auto-flow: column; grid-auto-columns: 46px; gap: 5px; width: max-content; }
+    .tile {
+      display: grid;
+      place-items: center;
+      min-height: 42px;
+      padding: 3px;
+      border: 1px solid rgba(126, 105, 153, .13);
+      border-radius: 12px;
+      background: rgba(255,255,255,.88);
+      font-size: 16px;
+      box-shadow: 0 3px 9px rgba(81, 62, 98, .06);
+    }
+    .tile.active { border-color: rgba(217, 134, 165, .66); background: linear-gradient(145deg, #fff3f7, #f2ebfb); box-shadow: 0 4px 13px rgba(202, 111, 151, .2); }
+    .tile.arrived { animation: arrive .62s ease-out; }
+    @keyframes arrive {
+      0% { transform: translateY(-8px) scale(.78); box-shadow: 0 0 0 rgba(217,134,165,0); }
+      60% { transform: translateY(1px) scale(1.1); box-shadow: 0 0 0 8px rgba(217,134,165,.12); }
+      100% { transform: none; }
+    }
+
+    .message-card {
+      margin-top: 10px;
+      padding: 13px 14px;
+      border-radius: 18px;
+      white-space: pre-wrap;
+    }
+
+    .system-card { border: 1px solid rgba(92, 141, 184, .17); background: var(--blue-soft); }
+    .system-card .label { color: #527ea3; }
+    .task-card { border: 1px solid rgba(194, 111, 148, .22); background: linear-gradient(145deg, var(--pink-soft), #f4effb); }
+    .task-card .label { color: #ad5378; }
+    .label { margin-bottom: 5px; font-size: 11px; font-weight: 900; letter-spacing: .1em; }
+    .task-text { font-size: 15px; line-height: 1.68; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .chip { padding: 3px 8px; border-radius: 999px; color: #765982; background: rgba(255,255,255,.72); font-size: 11px; }
+
+    .story-card {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 10px;
+      border: 1px solid rgba(126, 105, 169, .2);
+      background: linear-gradient(145deg, #f2ebfa, #fff9fc);
+    }
+    .story-speaker { margin-bottom: 3px; color: var(--purple); font-size: 12px; font-weight: 900; }
+    .story-text { line-height: 1.72; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    .actions button {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink);
+      background: rgba(255,255,255,.82);
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .actions button:hover { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(88, 66, 105, .12); }
+    .actions button:disabled { cursor: not-allowed; opacity: .48; transform: none; box-shadow: none; }
+    .actions .primary { border-color: transparent; color: white; background: linear-gradient(135deg, #8a70b2, #ce7d9e); }
+    .actions .good { color: #31785b; background: var(--green-soft); }
+    .actions .danger { color: var(--danger); background: #fff0f3; }
+
+    .utility-panel {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,.5);
+    }
+    .utility-panel summary { padding: 10px 12px; color: var(--purple); font-size: 12px; font-weight: 900; cursor: pointer; }
+    .utility-body { display: grid; gap: 10px; padding: 0 12px 12px; }
+    .ability-row { padding-top: 8px; border-top: 1px dashed var(--line); }
+    .ability-row:first-child { padding-top: 0; border-top: 0; }
+    .ability-title { margin-bottom: 6px; font-size: 12px; font-weight: 900; }
+    .ability-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ability-buttons button, .ability-buttons select, .ability-buttons input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.8); font: inherit; font-size: 11px; }
+    .ability-buttons button { cursor: pointer; }
+
+    .status-strip { min-height: 22px; margin-top: 9px; color: var(--muted); font-size: 11px; }
+    .status-strip.error { color: var(--danger); }
+    .paused-mask { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 24px; background: rgba(40,34,48,.74); backdrop-filter: blur(5px); }
+    .paused-card { max-width: 360px; padding: 22px; border-radius: 22px; color: #392f41; text-align: center; background: #fff8fb; box-shadow: 0 18px 50px rgba(0,0,0,.22); }
+    .paused-card h2 { margin: 0 0 6px; }
+    .paused-card p { margin: 0 0 14px; color: #766a7d; }
+    .paused-card button { padding: 8px 14px; border: 0; border-radius: 999px; color: white; background: linear-gradient(135deg, #8a70b2, #ce7d9e); cursor: pointer; }
+
+    .empty { color: var(--muted); font-style: italic; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 520px) {
+      body { padding: 4px; }
+      .game-shell { padding: 14px; border-radius: 22px; }
+      .hero-avatar { width: 54px; height: 54px; }
+      h1 { font-size: 17px; }
+      .safety { padding: 6px 8px; }
+      .turn-console { grid-template-columns: 62px minmax(0, 1fr); }
+      .turn-console .icon-button { display: none; }
+      .die { width: 54px; height: 54px; border-radius: 15px; font-size: 34px; }
+      .players { grid-template-columns: 1fr; }
+      .player { padding: 9px 11px; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #f3edf7;
+        --muted: #b9afc1;
+        --panel: rgba(36, 31, 43, .94);
+        --line: rgba(214, 193, 229, .14);
+        --purple-soft: #443951;
+        --pink-soft: #4a3540;
+        --blue-soft: #293946;
+        --shadow: 0 16px 36px rgba(0,0,0,.28);
+      }
+      .player, .board-card, .tile, .actions button, .utility-panel, .ability-buttons button, .ability-buttons select, .ability-buttons input, .icon-button { background: rgba(61, 53, 70, .82); }
+      .turn-console { background: linear-gradient(135deg, rgba(64,54,77,.92), rgba(66,48,58,.9)); }
+      .die { color: #d9c5ef; background: rgba(75,63,87,.92); }
+      .tile.active { background: linear-gradient(145deg, #563b49, #423653); }
+      .task-card { background: linear-gradient(145deg, #4a3540, #3c3548); }
+      .story-card { background: linear-gradient(145deg, #40364d, #3a3039); }
+      .safety { color: #ffb4c2; background: rgba(114, 50, 67, .36); }
+      .chip { background: rgba(255,255,255,.08); color: #dfcde7; }
+      .paused-card { color: #f3edf7; background: #3e3446; }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <header class="hero">
+      <div class="hero-avatar"><img alt="露易丝头像" data-loulou-avatar /></div>
+      <div class="hero-copy">
+        <div class="eyebrow">Interactive Spicy Monopoly</div>
+        <h1>咲咲与露易丝的大富翁</h1>
+        <div class="subline">局号 <span id="game-id">—</span> · <span id="turn-line">等待同步</span></div>
+      </div>
+      <button id="safety-button" class="safety" type="button" title="安全词：立即停止，不追问">404 安全词</button>
+    </header>
+
+    <section id="players" class="players" aria-label="玩家状态"></section>
+
+    <section class="turn-console" aria-label="回合操作台">
+      <div id="die" class="die" aria-live="polite">🎲</div>
+      <div>
+        <div id="turn-title" class="turn-title"><span class="live-dot"></span>等待棋局同步</div>
+        <div id="turn-hint" class="turn-hint">棋盘会直接调用游戏引擎，不会自己编造点数。</div>
+      </div>
+      <button id="fullscreen-button" class="icon-button" type="button" title="全屏游戏">⛶</button>
+    </section>
+
+    <section class="board-card" aria-label="游戏棋盘">
+      <div class="section-head">
+        <div class="section-title">🎲 当前棋盘</div>
+        <div id="progress" class="progress"></div>
+      </div>
+      <div class="board-scroll"><div id="board" class="board-row"></div></div>
+    </section>
+
+    <section id="system-card" class="message-card system-card" hidden>
+      <div class="label">SYSTEM · 系统提示</div>
+      <div id="system-text"></div>
+    </section>
+
+    <section id="task-card" class="message-card task-card" hidden>
+      <div class="label">TASK · 本回合任务</div>
+      <div id="task-text" class="task-text"></div>
+      <div id="task-chips" class="chips"></div>
+    </section>
+
+    <section id="story-card" class="message-card story-card" hidden>
+      <div class="story-avatar"><img alt="露易丝头像" data-loulou-avatar /></div>
+      <div>
+        <div id="story-speaker" class="story-speaker">露易丝</div>
+        <div id="story-text" class="story-text"></div>
+      </div>
+    </section>
+
+    <nav id="actions" class="actions" aria-label="游戏快捷操作"></nav>
+
+    <details id="utility-panel" class="utility-panel">
+      <summary>🃏 手牌与身份能力</summary>
+      <div id="utility-body" class="utility-body"></div>
+    </details>
+
+    <div id="status-strip" class="status-strip" role="status" aria-live="polite"></div>
+
+    <div id="paused-mask" class="paused-mask" hidden>
+      <div class="paused-card">
+        <h2>本局已暂停</h2>
+        <p>404 已生效。不会继续任务、结算或掷骰，直到你明确恢复。</p>
+        <button id="resume-button" type="button">我确认继续</button>
+      </div>
+    </div>
+  </main>
+  <script>
+    const loulouAvatar = "__LOULOU_AVATAR_DATA_URI__";
+    document.querySelectorAll("[data-loulou-avatar]").forEach(function (image) { image.src = loulouAvatar; });
+
+    const byId = function (id) { return document.getElementById(id); };
+    const diceFaces = ["🎲", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+    const markSpots = ["耳垂", "后颈", "锁骨", "乳头", "腰侧", "肚脐", "大腿内侧", "膝窝", "脚踝", "手腕", "背脊", "臀"];
+    const app = {
+      data: {},
+      pending: null,
+      busy: false,
+      stopped: false,
+      error: "",
+      diceTimer: null,
+      previousArrival: null,
+    };
+
+    function text(value) {
+      if (value === undefined || value === null) return "";
+      return typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function unwrap(value) {
+      const queue = [value];
+      const seen = new Set();
+      while (queue.length) {
+        const item = queue.shift();
+        if (!item || typeof item !== "object" || seen.has(item)) continue;
+        seen.add(item);
+        if (item.structuredContent && typeof item.structuredContent === "object") return item.structuredContent;
+        for (const key of ["toolOutput", "call_tool_result", "callToolResult", "mcp_tool_result", "mcpToolResult", "result"]) {
+          if (item[key] && typeof item[key] === "object") queue.push(item[key]);
+        }
+      }
+      return value;
+    }
+
+    function gameId() {
+      return app.data.game_id || "";
+    }
+
+    function playerNames() {
+      return Array.from(new Set(
+        Object.keys(app.data.positions || {})
+          .concat(Object.keys(app.data.coins || {}))
+          .concat(Object.keys(app.data.laps || {}))
+      ));
+    }
+
+    function marker(name) {
+      if (/露易丝|露露/.test(name)) return "🪻";
+      if (/咲咲/.test(name)) return "🐶";
+      return "🎲";
+    }
+
+    function parseBoardMeta(boardText) {
+      const result = {};
+      const lines = text(boardText).split("\n").slice(1);
+      for (const name of playerNames()) {
+        const line = lines.find(function (candidate) { return candidate.includes(name + "@"); }) || "";
+        const handMatch = line.match(/🃏［([^］]*)］/);
+        const identityMatch = line.match(/身份:(.+)$/);
+        const handText = handMatch ? handMatch[1].trim() : "";
+        result[name] = {
+          identity: identityMatch ? identityMatch[1].trim() : "无",
+          hand: handText && handText !== "空" ? handText.split(/[,，]/).map(function (item) { return item.trim(); }).filter(Boolean) : [],
+        };
+      }
+      return result;
+    }
+
+    function requestHost(method, params) {
+      const id = requestHost.nextId++;
+      window.parent.postMessage({ jsonrpc: "2.0", id: id, method: method, params: params }, "*");
+      return new Promise(function (resolve, reject) {
+        requestHost.pending.set(id, { resolve: resolve, reject: reject });
+      });
+    }
+    requestHost.nextId = 1;
+    requestHost.pending = new Map();
+
+    async function sendPrompt(prompt) {
+      if (window.openai && window.openai.sendFollowUpMessage) {
+        await window.openai.sendFollowUpMessage({ prompt: prompt, scrollToBottom: false });
+        return;
+      }
+      await requestHost("ui/message", {
+        role: "user",
+        content: [{ type: "text", text: prompt }],
+      });
+    }
+
+    function setStatus(message, isError) {
+      app.error = isError ? message : "";
+      const strip = byId("status-strip");
+      strip.textContent = message || "";
+      strip.className = "status-strip" + (isError ? " error" : "");
+    }
+
+    function startDiceAnimation() {
+      const die = byId("die");
+      die.classList.add("rolling");
+      let frame = 1;
+      clearInterval(app.diceTimer);
+      app.diceTimer = setInterval(function () {
+        die.textContent = diceFaces[frame];
+        frame = frame === 6 ? 1 : frame + 1;
+      }, 90);
+    }
+
+    function stopDiceAnimation(value) {
+      clearInterval(app.diceTimer);
+      app.diceTimer = null;
+      const die = byId("die");
+      die.classList.remove("rolling");
+      die.textContent = diceFaces[Number(value)] || "🎲";
+    }
+
+    function derivePending(data, fallbackWho) {
+      const who = data.who || fallbackWho || "";
+      if (data.action_needed === "duel" || data.duel) {
+        return { kind: "duel", who: who, duel: data.duel || {}, task: data.task || {} };
+      }
+      if (data.action_needed === "toll" || data.toll) {
+        return { kind: "toll", who: who, toll: data.toll || {}, task: data.task || {} };
+      }
+      if (data.task && Object.keys(data.task).length) {
+        return {
+          kind: data.action_needed === "super" || data.task.buyout ? "super" : "task",
+          who: who,
+          task: data.task,
+        };
+      }
+      if (data.truth && Object.keys(data.truth).length) {
+        return {
+          kind: data.tile === "truth" ? "truth" : "forced_truth",
+          who: who,
+          task: data.truth,
+        };
+      }
+      return null;
+    }
+
+    function mergeIncoming(data, options) {
+      options = options || {};
+      const eventKeys = [
+        "who", "dice", "tile", "say", "settled", "result", "error", "hint", "action_needed",
+        "task", "truth", "toll", "duel", "mystery", "card", "game_over",
+        "event_title", "system_text", "speaker", "story"
+      ];
+      const stable = Object.assign({}, app.data);
+      for (const key of eventKeys) delete stable[key];
+      app.data = Object.assign(stable, data);
+
+      if (options.pendingMode === "clear") {
+        app.pending = null;
+      } else if (options.pendingMode === "preserve") {
+        if (data.task && Object.keys(data.task).length && options.replaceIfTask) {
+          app.pending = derivePending(data, options.actor) || app.pending;
+        }
+      } else {
+        app.pending = derivePending(data, options.actor);
+      }
+
+      if (options.hideStory && !data.story) {
+        delete app.data.story;
+        delete app.data.speaker;
+      }
+      renderAll();
+      persistWidgetState();
+    }
+
+    function conciseEvent(data, label) {
+      const lines = [
+        "【互动棋盘已执行，请勿重复调用 roll、game_action 或 render_game】",
+        "操作：" + label,
+        data.settled ? "上一轮结算：" + text(data.settled) : "",
+        data.say ? "引擎结果：" + text(data.say) : "",
+        data.result ? "操作结果：" + text(data.result) : "",
+        data.dice ? "骰子：" + data.dice : "",
+        data.task ? "当前任务：" + text(data.task["内容"] || data.task.content || data.task) : "",
+        data.truth ? "当前真心话：" + text(data.truth["内容"] || data.truth.content || data.truth) : "",
+        data.hint ? "引擎提示：" + text(data.hint) : "",
+        "棋盘状态已经在卡片内更新。请只以露易丝身份自然回应刚发生的事件；若有任务，请接住剧情并等待玩家在卡片里点击完成、跳过或交换。不要替玩家完成，不要提前结算，也不要掷下一轮。"
+      ];
+      return lines.filter(Boolean).join("\n");
+    }
+
+    async function callGameTool(name, args, options) {
+      options = options || {};
+      if (app.busy || (app.stopped && !options.allowWhileStopped)) return;
+      if (!gameId()) {
+        setStatus("还没有有效局号，不能操作棋盘。", true);
+        return;
+      }
+      app.busy = true;
+      setStatus(options.loading || "正在连接游戏引擎…", false);
+      renderActions();
+      if (name === "roll") startDiceAnimation();
+
+      try {
+        let response;
+        if (window.openai && window.openai.callTool) {
+          response = await window.openai.callTool(name, args);
+        } else {
+          response = await requestHost("tools/call", { name: name, arguments: args });
+        }
+        const data = unwrap(response);
+        if (!data || typeof data !== "object") throw new Error("游戏引擎没有返回可读取的状态。");
+        if (data.error || data.ok === false) {
+          if (name === "roll") stopDiceAnimation();
+          setStatus(text(data.error || "操作失败"), true);
+          return;
+        }
+
+        if (name === "roll") stopDiceAnimation(data.dice);
+        mergeIncoming(data, {
+          pendingMode: options.pendingMode || "derive",
+          actor: options.actor,
+          replaceIfTask: options.replaceIfTask,
+          hideStory: true,
+        });
+        setStatus(options.success || "棋盘已按真实结果更新。", false);
+
+        if (options.notify !== false) {
+          sendPrompt(conciseEvent(data, options.label || "棋盘操作")).catch(function () {});
+        }
+      } catch (error) {
+        if (name === "roll") stopDiceAnimation();
+        setStatus(error && error.message ? error.message : String(error), true);
+      } finally {
+        app.busy = false;
+        renderAll();
+      }
+    }
+
+    function runAction(action, who, options, extra) {
+      const args = Object.assign({
+        action: action,
+        game_id: gameId(),
+      }, extra || {});
+      if (who) args.who = who;
+      return callGameTool("game_action", args, options);
+    }
+
+    function renderPlayers() {
+      const root = byId("players");
+      root.replaceChildren();
+      const names = playerNames();
+      const meta = parseBoardMeta(app.data.board);
+
+      if (!names.length) {
+        const empty = document.createElement("div");
+        empty.className = "player empty";
+        empty.textContent = "玩家状态将在开局后显示";
+        root.append(empty);
+        return;
+      }
+
+      for (const name of names) {
+        const card = document.createElement("article");
+        card.className = "player" + (app.data.turn === name && !app.pending ? " current" : "");
+
+        const head = document.createElement("div");
+        head.className = "player-name";
+        const playerName = document.createElement("span");
+        playerName.textContent = marker(name) + " " + name + (app.data.turn === name && !app.pending ? " · 当前回合" : "");
+        const coin = document.createElement("span");
+        coin.className = "coin";
+        coin.textContent = "💰" + (app.data.coins && app.data.coins[name] !== undefined ? app.data.coins[name] : "—");
+        head.append(playerName, coin);
+
+        const stats = document.createElement("div");
+        stats.className = "player-stats";
+        stats.textContent = "位置 " + (app.data.positions && app.data.positions[name] !== undefined ? app.data.positions[name] : "—")
+          + " · 第 " + (Number(app.data.laps && app.data.laps[name] !== undefined ? app.data.laps[name] : 0) + 1) + " 圈";
+
+        const identity = document.createElement("div");
+        identity.className = "player-identity";
+        identity.textContent = "身份 · " + (meta[name] ? meta[name].identity : "读取中");
+
+        card.append(head, stats, identity);
+
+        if (meta[name] && meta[name].hand.length) {
+          const hand = document.createElement("div");
+          hand.className = "hand";
+          meta[name].hand.forEach(function (cardName, index) {
+            const use = document.createElement("button");
+            use.type = "button";
+            use.textContent = "🃏 " + cardName;
+            use.title = "点击使用这张功能卡";
+            use.disabled = app.busy || app.stopped;
+            use.addEventListener("click", function () {
+              callGameTool("game_action", {
+                action: "use_card",
+                game_id: gameId(),
+                who: name,
+                index: index,
+              }, {
+                pendingMode: "preserve",
+                label: name + " 使用功能卡 " + cardName,
+                loading: "正在使用功能卡…",
+              });
+            });
+            hand.append(use);
+          });
+          card.append(hand);
+        }
+        root.append(card);
+      }
+    }
+
+    function renderBoard() {
+      const boardText = text(app.data.board);
+      const firstLine = boardText.split("\n")[0] || "";
+      const progressMatch = firstLine.match(/〔([^〕]+)〕/);
+      byId("progress").textContent = progressMatch ? progressMatch[1] : "";
+
+      const cells = Array.from(firstLine.matchAll(/［([^］]*)］/g), function (match) { return match[1]; });
+      const root = byId("board");
+      root.replaceChildren();
+      if (!cells.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "棋盘将在开局后显示";
+        root.append(empty);
+        return;
+      }
+
+      const arrivedIndex = app.data.who && app.data.positions ? Number(app.data.positions[app.data.who]) : -1;
+      const occupiedIndices = new Set(Object.values(app.data.positions || {}).map(function (value) { return Number(value); }));
+      cells.forEach(function (value, index) {
+        const cell = document.createElement("div");
+        cell.className = occupiedIndices.has(index) ? "tile active" : "tile";
+        cell.dataset.index = String(index);
+        cell.setAttribute("aria-label", "第 " + index + " 格：" + (value || "空格"));
+        if (app.data.dice && index === arrivedIndex) cell.classList.add("arrived");
+        cell.textContent = value || "·";
+        root.append(cell);
+        if (app.data.dice && index === arrivedIndex && app.previousArrival !== app.data.who + ":" + index) {
+          app.previousArrival = app.data.who + ":" + index;
+          setTimeout(function () {
+            cell.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+          }, 80);
+        }
+      });
+    }
+
+    function pendingBody() {
+      return app.pending && app.pending.task ? app.pending.task : null;
+    }
+
+    function renderTask() {
+      const card = byId("task-card");
+      const task = pendingBody();
+      if (!task || !Object.keys(task).length) {
+        card.hidden = true;
+        return;
+      }
+
+      const labelByKind = {
+        task: "TASK · 本回合任务",
+        super: "🔥 SUPER · 超级任务",
+        truth: "💬 TRUTH · 真心话",
+        forced_truth: "🎭 TRUTH · 必答真心话",
+        toll: "👑 TOLL · 地主差遣",
+        duel: "⚔️ DUEL · 同格对决",
+      };
+      card.querySelector(".label").textContent = labelByKind[app.pending.kind] || "TASK · 本回合任务";
+      const body = task["内容"] || task.content || task.title || task.name || task.desc || "";
+      byId("task-text").textContent = text(body);
+      const chips = byId("task-chips");
+      chips.replaceChildren();
+      [
+        ["强度", task["强度"] || task.strength],
+        ["类型", task["玩法类型"] || task.type],
+        ["方向", task.dir],
+        ["玩法", task.kink],
+        ["奖励", task["完成奖励"] || task.reward || task.buyout],
+      ].forEach(function (entry) {
+        if (!entry[1] || entry[1] === "-") return;
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        chip.textContent = entry[0] + " · " + text(entry[1]);
+        chips.append(chip);
+      });
+      card.hidden = !body;
+    }
+
+    function renderMessages() {
+      const messages = [
+        app.data.settled,
+        app.data.system_text,
+        app.data.say,
+        app.data.result,
+        app.data.error,
+      ].filter(Boolean);
+      const systemText = messages.map(text).join("\n");
+      byId("system-text").textContent = systemText;
+      byId("system-card").hidden = !systemText;
+
+      const story = app.data.story || "";
+      byId("story-speaker").textContent = app.data.speaker || "露易丝";
+      byId("story-text").textContent = text(story);
+      byId("story-card").hidden = !story;
+    }
+
+    function makeButton(label, className, handler) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.className = className || "";
+      item.disabled = app.busy;
+      item.addEventListener("click", handler);
+      return item;
+    }
+
+    function askLoulouToContinue() {
+      sendPrompt("请继续当前大富翁回合的剧情。不要调用任何游戏工具，不要结算，也不要掷下一轮；等我在互动棋盘里点击下一步。").catch(function () {});
+    }
+
+    function clearForcedTruth() {
+      app.pending = null;
+      renderAll();
+      persistWidgetState();
+      sendPrompt("我已经回答完棋盘里的必答真心话了。请以露易丝身份回应，但不要调用游戏工具；下一步由我在棋盘中操作。").catch(function () {});
+    }
+
+    function renderActions() {
+      const root = byId("actions");
+      root.replaceChildren();
+
+      if (app.busy) {
+        root.append(makeButton("处理中…", "primary", function () {}));
+        return;
+      }
+      if (app.stopped) return;
+
+      const pending = app.pending;
+      if (pending) {
+        const who = pending.who || app.data.who || "";
+        if (pending.kind === "duel") {
+          playerNames().forEach(function (name) {
+            root.append(makeButton("⚔️ " + name + "获胜", "primary", function () {
+              callGameTool("game_action", {
+                action: "duel_result",
+                game_id: gameId(),
+                winner: name,
+              }, {
+                pendingMode: "clear",
+                label: "判定同格对决由 " + name + " 获胜",
+                loading: "正在结算对决…",
+              });
+            }));
+          });
+        } else if (pending.kind === "toll") {
+          if (!pending.toll.serve_only) {
+            root.append(makeButton("💰 支付 " + (pending.toll.fee || 3) + " 币", "", function () {
+              runAction("pay_toll", who, {
+                pendingMode: "clear",
+                label: who + " 支付过路费",
+                loading: "正在结清过路费…",
+              });
+            }));
+          }
+          root.append(makeButton("👑 差遣已经完成", "primary", function () {
+            runAction("serve_toll", who, {
+              pendingMode: "clear",
+              label: who + " 完成地主差遣抵扣过路费",
+              loading: "正在确认差遣完成…",
+            });
+          }));
+          root.append(makeButton("继续演这一段", "", askLoulouToContinue));
+        } else if (pending.kind === "forced_truth") {
+          root.append(makeButton("✓ 我已经回答", "primary", clearForcedTruth));
+          root.append(makeButton("继续对话", "", askLoulouToContinue));
+        } else if (pending.kind === "super") {
+          root.append(makeButton("✓ 超级任务已完成", "primary", function () {
+            runAction("done", who, {
+              pendingMode: "clear",
+              label: who + " 完成超级任务",
+              loading: "正在结算超级任务…",
+            });
+          }));
+          root.append(makeButton("💸 花 8 币买断", "", function () {
+            runAction("buyout_super", who, {
+              pendingMode: "clear",
+              label: who + " 买断超级任务",
+              loading: "正在买断任务…",
+            });
+          }));
+          root.append(makeButton("继续剧情", "", askLoulouToContinue));
+        } else {
+          root.append(makeButton(pending.kind === "truth" ? "✓ 已经回答完" : "✓ 任务真正完成", "primary", function () {
+            runAction("done", who, {
+              pendingMode: "clear",
+              label: who + (pending.kind === "truth" ? " 回答完真心话" : " 完成当前任务"),
+              loading: "正在结算本回合…",
+            });
+          }));
+          root.append(makeButton("⏭ 免费跳过", "", function () {
+            runAction("skip", who, {
+              pendingMode: "clear",
+              label: who + " 免费跳过当前任务",
+              loading: "正在跳过任务…",
+            });
+          }));
+          root.append(makeButton("🔄 花 1 币换一道", "", function () {
+            runAction("swap", who, {
+              pendingMode: "derive",
+              actor: who,
+              label: who + " 交换当前任务",
+              loading: "正在抽取替换任务…",
+            });
+          }));
+          root.append(makeButton("继续剧情", "", askLoulouToContinue));
+        }
+      } else if (app.data.game_over) {
+        root.append(makeButton("🏁 查看最终结果", "primary", function () {
+          runAction("final_result", "", {
+            pendingMode: "clear",
+            label: "查看本局最终结果",
+            loading: "正在统计胜负…",
+          });
+        }));
+      } else {
+        const current = app.data.turn || "";
+        const identity = (parseBoardMeta(app.data.board)[current] || {}).identity || "";
+        if (/赌徒/.test(identity)) {
+          root.append(makeButton("🎰 押大并掷骰", "primary", function () {
+            callGameTool("roll", { game_id: gameId(), guess: "大" }, {
+              pendingMode: "derive",
+              label: current + " 押大并掷骰",
+              loading: "骰子正在滚动…",
+            });
+          }));
+          root.append(makeButton("🎰 押小并掷骰", "primary", function () {
+            callGameTool("roll", { game_id: gameId(), guess: "小" }, {
+              pendingMode: "derive",
+              label: current + " 押小并掷骰",
+              loading: "骰子正在滚动…",
+            });
+          }));
+        } else {
+          root.append(makeButton("🎲 " + (current || "当前玩家") + "掷骰子", "primary", function () {
+            callGameTool("roll", { game_id: gameId() }, {
+              pendingMode: "derive",
+              label: (current || "当前玩家") + " 掷骰",
+              loading: "骰子正在滚动…",
+            });
+          }));
+        }
+
+        if (app.data.tile === "shop" && app.data.who) {
+          root.append(makeButton("🛒 随机购买功能卡", "good", function () {
+            runAction("buy_card", app.data.who, {
+              pendingMode: "preserve",
+              label: app.data.who + " 在商店随机购买功能卡",
+              loading: "正在从商店抽卡…",
+            });
+          }));
+        }
+      }
+
+      root.append(makeButton("404 立即暂停", "danger", safetyStop));
+    }
+
+    function abilityButton(label, handler) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.disabled = app.busy || app.stopped;
+      item.addEventListener("click", handler);
+      return item;
+    }
+
+    function renderUtility() {
+      const root = byId("utility-body");
+      root.replaceChildren();
+      const names = playerNames();
+      const meta = parseBoardMeta(app.data.board);
+
+      if (!names.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "开局后显示身份能力与手牌。";
+        root.append(empty);
+        return;
+      }
+
+      names.forEach(function (name) {
+        const identity = meta[name] ? meta[name].identity : "无";
+        const row = document.createElement("section");
+        row.className = "ability-row";
+        const title = document.createElement("div");
+        title.className = "ability-title";
+        title.textContent = marker(name) + " " + name + " · " + identity;
+        const actions = document.createElement("div");
+        actions.className = "ability-buttons";
+
+        actions.append(abilityButton("重抽身份（每局一次）", function () {
+          runAction("reroll_identity", name, {
+            pendingMode: "preserve",
+            label: name + " 重抽身份",
+            loading: "正在重抽身份…",
+          });
+        }));
+
+        if (/猫猫/.test(identity) && app.pending && app.pending.who === name) {
+          actions.append(abilityButton("🐱 免费重抽任务", function () {
+            runAction("reroll_task", name, {
+              pendingMode: "derive",
+              actor: name,
+              label: name + " 使用猫猫能力重抽任务",
+              loading: "猫猫正在拨弄任务牌…",
+            });
+          }));
+        }
+        if (/处子/.test(identity)) {
+          actions.append(abilityButton("🫣 记录第一次高潮 +3", function () {
+            runAction("id_event", name, {
+              pendingMode: "preserve",
+              label: name + " 触发处子身份事件",
+              loading: "正在记录身份事件…",
+            }, { event: "first_climax" });
+          }));
+        }
+        if (/禁言者/.test(identity)) {
+          actions.append(abilityButton("🤐 被抓到说禁词", function () {
+            runAction("id_event", name, {
+              pendingMode: "preserve",
+              label: name + " 触发禁言者惩罚",
+              loading: "正在结算禁词惩罚…",
+            }, { event: "say_banned" });
+          }));
+        }
+        if (/接吻魔/.test(identity)) {
+          actions.append(abilityButton("💋 两回合没有接吻", function () {
+            runAction("id_event", name, {
+              pendingMode: "preserve",
+              label: name + " 触发接吻魔惩罚",
+              loading: "正在结算身份事件…",
+            }, { event: "no_kiss_2turns" });
+          }));
+        }
+        if (/不知餍足/.test(identity)) {
+          actions.append(abilityButton("➕ 加餐一道任务", function () {
+            runAction("extra_task", name, {
+              pendingMode: "derive",
+              actor: name,
+              label: name + " 使用不知餍足能力加餐",
+              loading: "正在抽取加餐任务…",
+            });
+          }));
+        }
+        if (/背德者/.test(identity)) {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.placeholder = "输入本局背德身份";
+          input.setAttribute("aria-label", name + "的背德身份");
+          const declare = abilityButton("🎭 宣告身份", function () {
+            const persona = input.value.trim();
+            if (!persona) {
+              setStatus("先写下要宣告的背德身份。", true);
+              return;
+            }
+            runAction("declare_persona", name, {
+              pendingMode: "preserve",
+              label: name + " 宣告背德身份：" + persona,
+              loading: "正在登记身份设定…",
+            }, { persona: persona });
+          });
+          actions.append(input, declare);
+        }
+        if (/淫纹持有者/.test(identity)) {
+          const guesser = names.find(function (candidate) { return candidate !== name; }) || "";
+          const select = document.createElement("select");
+          select.setAttribute("aria-label", "猜测淫纹位置");
+          markSpots.forEach(function (spot) {
+            const option = document.createElement("option");
+            option.value = spot;
+            option.textContent = spot;
+            select.append(option);
+          });
+          actions.append(select, abilityButton("🌀 " + guesser + "猜位置", function () {
+            runAction("guess_mark", guesser, {
+              pendingMode: "preserve",
+              label: guesser + " 猜测淫纹位置：" + select.value,
+              loading: "正在验证隐藏位置…",
+            }, { spot: select.value });
+          }));
+        }
+
+        row.append(title, actions);
+        root.append(row);
+      });
+    }
+
+    function renderTurnConsole() {
+      const pending = app.pending;
+      const title = byId("turn-title");
+      const hint = byId("turn-hint");
+      const current = app.data.turn || "等待同步";
+      byId("game-id").textContent = gameId() || "—";
+      byId("turn-line").textContent = app.data.event_title || "轮到 " + current;
+
+      if (pending) {
+        const labels = {
+          task: "任务进行中",
+          super: "超级任务进行中",
+          truth: "等待真心话回答",
+          forced_truth: "等待必答真心话",
+          toll: "等待过路费选择",
+          duel: "等待对决结果",
+        };
+        title.textContent = (labels[pending.kind] || "等待本回合处理") + " · " + (pending.who || app.data.who || "");
+        hint.textContent = app.data.hint || "完成实际互动后，再点击对应的结算按钮。";
+      } else if (app.stopped) {
+        title.textContent = "404 已生效 · 游戏暂停";
+        hint.textContent = "不会继续任务或掷骰。";
+      } else {
+        title.textContent = "轮到 " + current;
+        hint.textContent = app.data.game_over ? "本局回合已经结束，可以查看最终结果。" : "点击下方按钮，骰点和棋盘会在这里直接更新。";
+      }
+
+      if (!app.diceTimer) byId("die").textContent = diceFaces[Number(app.data.dice)] || "🎲";
+    }
+
+    function renderAll() {
+      renderTurnConsole();
+      renderPlayers();
+      renderBoard();
+      renderMessages();
+      renderTask();
+      renderActions();
+      renderUtility();
+      byId("paused-mask").hidden = !app.stopped;
+      if (app.error) setStatus(app.error, true);
+    }
+
+    function persistWidgetState() {
+      if (!window.openai || !window.openai.setWidgetState || !gameId()) return;
+      const summary = [
+        "大富翁局号 " + gameId(),
+        app.data.turn ? "当前轮到 " + app.data.turn : "",
+        app.pending ? "待处理：" + app.pending.kind + "（" + (app.pending.who || "") + "）" : "当前无待处理任务",
+        app.data.say || app.data.result || "",
+      ].filter(Boolean).join("；");
+      window.openai.setWidgetState({
+        modelContent: summary,
+        privateContent: {
+          game_id: gameId(),
+          stopped: app.stopped,
+        },
+      });
+    }
+
+    async function safetyStop() {
+      if (app.stopped) return;
+      app.stopped = true;
+      renderAll();
+      persistWidgetState();
+      setStatus("404 已生效：游戏立即暂停。", false);
+
+      const pending = app.pending;
+      if (pending && ["task", "truth", "super"].includes(pending.kind) && pending.who) {
+        await runAction("skip", pending.who, {
+          allowWhileStopped: true,
+          pendingMode: "clear",
+          notify: false,
+          label: "404 安全跳过",
+          loading: "正在安全跳过当前任务…",
+          success: "当前任务已安全跳过，本局保持暂停。",
+        });
+      } else if (pending && pending.kind === "forced_truth") {
+        app.pending = null;
+        renderAll();
+        persistWidgetState();
+      }
+      sendPrompt("404。互动棋盘已经立即暂停；不要继续任何亲密剧情，不要追问理由，不要掷骰或结算。只需简短确认暂停。").catch(function () {});
+    }
+
+    function resumeGame() {
+      app.stopped = false;
+      setStatus("本局已恢复，等待你在棋盘中选择下一步。", false);
+      renderAll();
+      persistWidgetState();
+      sendPrompt("我明确确认恢复这局大富翁。先不要自动调用工具或掷骰，等我在互动棋盘里选择下一步。").catch(function () {});
+    }
+
+    function acceptInitial(raw) {
+      const data = unwrap(raw);
+      if (!data || typeof data !== "object") return;
+      mergeIncoming(data, { pendingMode: "derive" });
+      setStatus("互动棋盘已连接，可以直接操作。", false);
+    }
+
+    byId("safety-button").addEventListener("click", safetyStop);
+    byId("resume-button").addEventListener("click", resumeGame);
+    byId("fullscreen-button").addEventListener("click", async function () {
+      if (window.openai && window.openai.requestDisplayMode) {
+        await window.openai.requestDisplayMode({ mode: "fullscreen" });
+      } else {
+        setStatus("当前宿主不支持全屏模式，但所有游戏操作仍可使用。", false);
+      }
+    });
+
+    window.addEventListener("message", function (event) {
+      if (event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+      if (message.id !== undefined && requestHost.pending.has(message.id)) {
+        const pending = requestHost.pending.get(message.id);
+        requestHost.pending.delete(message.id);
+        if (message.error) pending.reject(message.error);
+        else pending.resolve(message.result);
+        return;
+      }
+      if (message.method === "ui/notifications/tool-result" && !app.busy) {
+        acceptInitial(message.params && message.params.structuredContent ? message.params.structuredContent : message.params);
+      }
+    }, { passive: true });
+
+    window.addEventListener("openai:set_globals", function (event) {
+      if (app.busy) return;
+      const globals = event.detail && event.detail.globals;
+      if (globals && globals.toolOutput) acceptInitial(globals.toolOutput);
+    });
+
+    acceptInitial(window.openai && (window.openai.toolOutput || window.openai.toolResponseMetadata));
+  </script>
+</body>
+</html>

@@ -39,7 +39,7 @@ https://spicy-monopoly.lol/mcp
 
 AI 会看到 7 个高层工具：开局、掷骰、游戏操作、查询、管理、帮助和可选的美化界面；跳过/换卡/对决/功能卡/身份事件等仍收在一个 `game_action` 里，不需要自己会写 HTTP。
 
-支持 MCP Apps UI 的客户端还可以调用 `render_game`：它把权威棋盘、玩家金币与位置、系统提示、任务卡和角色剧情渲染为彼此分层的内嵌界面。界面只负责展示，掷骰与结算仍由原有引擎工具完成。
+支持 MCP Apps UI 的客户端还可以调用 `render_game`：它把权威棋盘变成可直接操作的内嵌游戏台。玩家能在棋盘里掷骰、结算任务、选择过路费/对决、使用手牌和身份能力；按钮仍调用原有 `roll` / `game_action`，骰点、金币和棋盘始终由引擎决定。`404` 会立即暂停，并安全跳过当前可跳过的任务。
 
 要自己部署远程 MCP：
 
@@ -95,7 +95,7 @@ uvicorn monopoly_api:app --host 0.0.0.0 --port 8069
 | `monopoly-API使用手册.md` | HTTP 接口手册 |
 | `monopoly-怎么玩-人类版.md` | 给人看的玩法简介 |
 | `mcp-server.js` | MCP server（支持本地 stdio 和远程 Streamable HTTP；默认连接公开托管 API，也可连自建 API） |
-| `game-widget.html` | 可选 MCP Apps 游戏界面（棋盘／提示／任务／剧情分层展示） |
+| `game-widget-v2.html` | 互动 MCP Apps 游戏界面（掷骰／结算／手牌／身份能力／404 暂停） |
 | `assets/loulou-avatar.png` | 美化界面中的露易丝头像资源 |
 | `MCP使用说明.md` | MCP 客户端接入、远程部署和本地配置说明 |
 

@@ -32,7 +32,10 @@ const MCP_ALLOWED_HOSTS = (process.env.SPICY_MONOPOLY_MCP_ALLOWED_HOSTS || "")
 // clients drop them on the floor, so this costs a player nothing.
 const MCP_SSE_KEEPALIVE_MS = Number.parseInt(process.env.SPICY_MONOPOLY_MCP_SSE_KEEPALIVE_MS || "25000", 10);
 const MCP_RULES_ACK = "mcp-host-v2026-07-06";
-const GAME_UI_URI = "ui://spicy-monopoly/game-board-v1.html";
+// The resource URI is a cache key in MCP Apps hosts. Bump it whenever the
+// component contract changes so existing conversations do not keep serving an
+// older, display-only board.
+const GAME_UI_URI = "ui://spicy-monopoly/game-board-v2.html";
 
 function ensureMcpAcceptHeader(req) {
   const desired = "application/json, text/event-stream";
@@ -339,6 +342,22 @@ async function request(method, path, body = undefined, query = undefined) {
   }
 }
 
+async function withCurrentState(gameId, data) {
+  if (!gameId || !data || typeof data !== "object") return data;
+  try {
+    const state = await request("GET", `/state/${encodeURIComponent(gameId)}`);
+    return {
+      ...data,
+      ...state,
+      game_id: gameId,
+    };
+  } catch {
+    // The action result is still useful (especially an explicit parameter or
+    // missing-game error). A failed refresh must not hide that result.
+    return { ...data, game_id: gameId };
+  }
+}
+
 function pick(value, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   return compact(Object.fromEntries(keys.map((key) => [key, value[key]])));
@@ -494,7 +513,8 @@ const hostRules = [
   "Paste the board verbatim, exactly as the tool returned it. Never redraw it as your own table or ASCII art: re-typing 20 tiles, both positions, coins and hands from memory gets them wrong, and a wrong board is worse than none.",
   "Every new game needs setup confirmation. A remembered rules_ack only proves you know the rules; setup_confirmed means this specific game was explained and confirmed.",
   "Keep the game_id: announce it to players once right after new_game (e.g. 局号 xxxxxxxx) so it stays in the visible chat. If you ever lose it, do NOT open a new game — recover it via game_info query=pair_history (returns last_game_id).",
-  "When players want the styled board, call render_game after the engine action. Copy system/task fields from the latest engine result, write story only for your own roleplay, and never use presentation text as game state.",
+  "When players want the styled board, call render_game after new_game to open it. A model-initiated roll/game_action may call render_game to resync it; a widget-initiated action already refreshes itself and must never be duplicated.",
+  "A follow-up beginning 【互动棋盘已执行，请勿重复调用…】 is a receipt from the widget: do not call roll, game_action, or render_game again. Respond with roleplay/commentary only, then wait for the next player click.",
 ];
 const setupQuestions = [
   "Before new_game, explain: two-player board game, take turns rolling on a 20-tile board, do tasks to earn coins/territory, highest coins wins final command.",
@@ -520,6 +540,7 @@ const turnLoop = [
   "On a final_result tie, players may break it: roll with tiebreak=true (adds one more round each, then rolls; pass again if still tied), or accept the tie with a final command from each side.",
   "If a task does not fit the current scene, preserve its strength/core kink and adapt it, or use game_action action=swap.",
   "Never invent dice, tasks, coins, winners, hidden marks, or state. If unsure or error, say so and call game_info query=state.",
+  "Interactive-widget exception: when the user's message says the widget already executed a tool, trust that receipt and do not repeat the engine call. The widget result shown in the same message is the authoritative result for that click.",
 ];
 const actionMap = {
   skip: "game_action {action:'skip', game_id, who}",
@@ -574,7 +595,8 @@ const newGameHostGuide = [
   "Every turn: call roll(game_id), paste board verbatim (copy it as-is; never redraw it yourself), read the task IN FULL and follow hint/action_needed, then wait for players to actually do it before rolling again — choosing 'do the task' is the start, not completion; do not fast-forward the human's task by rolling right after they agree.",
   "If anyone refuses/stops/says redline/404, use skip or stop immediately; do not argue.",
   "Never invent hidden state. On errors, show the parameter error and retry with corrected args.",
-  "When styled UI is enabled, call render_game after new_game/roll/game_action. Pass the engine's latest task fields unchanged and put your roleplay only in story_text.",
+  "When styled UI is enabled, call render_game after new_game to open it. Afterwards widget clicks handle their own roll/game_action calls and state refresh. If the model itself performs an engine action from a chat request, call render_game to resync/reopen the board.",
+  "If a widget follow-up begins 【互动棋盘已执行，请勿重复调用…】, do not call any tool. React to the supplied result in character and wait for the player's next click.",
 ];
 const newGameDescription = [
   "Start a new two-player game only after setup is explained and confirmed. If you only have the bare MCP URL, first call monopoly_help, learn the MCP host rules, and copy its rules_ack.",
@@ -636,7 +658,7 @@ tool("monopoly_help", {
     "Call roll for each turn. If the previous turn had pending work, pass task/toll/super_action/duel_winner only when the result asks for it.",
     "Use game_action for side actions such as skip, swap, duel_result, cards, identity events, or final_result.",
     "Use game_info for read-only state/shop/list/history queries.",
-    "Use render_game after an engine result when players want the styled board, task card, and character story bubble.",
+    "Use render_game to open the interactive board and to resync after model-initiated engine actions. Widget clicks refresh the existing board without another render_game call.",
     "Use game_admin only for delete, clear history, or voluntary feedback.",
   ],
   env: {
@@ -731,7 +753,11 @@ tool("roll", {
     tiebreak: z.union([z.boolean(), z.string()]).optional().describe("Boolean true, ONLY when final_result reports a tie and players want to break it: adds one extra round each, then rolls. Still tied afterwards? pass it again."),
   },
   annotations: { destructiveHint: false, openWorldHint: true },
-}, ({ game_id, ...body }) => {
+  _meta: {
+    ui: { visibility: ["model", "app"] },
+    "openai/widgetAccessible": true,
+  },
+}, async ({ game_id, ...body }) => {
   required({ game_id }, "game_id");
   oneOf(body, "toll", tollActions);
   oneOf(body, "task", taskActions);
@@ -739,11 +765,12 @@ tool("roll", {
   oneOf(body, "guess", guesses);
   booleanParam(body, "swap_identity");
   booleanParam(body, "tiebreak");
-  return request("POST", `/roll/${encodeURIComponent(game_id)}`, body).catch((error) => ({
-    ok: false,
-    error: error instanceof Error ? error.message : String(error),
-    action_needed: "Use the exact game_id returned by new_game. If you lost it or used an external id, call game_info query=list_games with player_token, or start a new game after setup_confirmed=true.",
-  }));
+  const data = await request("POST", `/roll/${encodeURIComponent(game_id)}`, body).catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      action_needed: "Use the exact game_id returned by new_game. If you lost it or used an external id, call game_info query=list_games with player_token, or start a new game after setup_confirmed=true.",
+    }));
+  return withCurrentState(game_id, data);
 });
 
 const pairSchema = {
@@ -790,7 +817,11 @@ tool("game_action", {
     event: z.string().optional().describe(`Identity event for id_event. Allowed: ${identityEvents.join(", ")}.`),
   },
   annotations: { destructiveHint: false, openWorldHint: true },
-}, (args) => {
+  _meta: {
+    ui: { visibility: ["model", "app"] },
+    "openai/widgetAccessible": true,
+  },
+}, async (args) => {
   oneOf(args, "action", gameActions, { required: true });
   const game = encodeURIComponent(required(args, "game_id"));
   const player = () => encodeURIComponent(required(args, "who"));
@@ -835,7 +866,7 @@ tool("game_action", {
     default:
       throw new Error(`Unsupported action: ${args.action}`);
   } };
-  return dispatch().catch((error) => {
+  const data = await dispatch().catch((error) => {
     const msg = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
@@ -845,6 +876,7 @@ tool("game_action", {
         : "先按 error 里的说明修正参数再重试;别一报错就重开新局。",
     };
   });
+  return withCurrentState(args.game_id, data);
 });
 
 tool("game_info", {
@@ -906,12 +938,12 @@ tool("game_info", {
 });
 
 tool("render_game", {
-  title: "美化游戏界面",
+  title: "互动游戏棋盘",
   description: [
-    "Render the current game as a styled inline UI with player status, board, system prompt, task card, and a separate character story bubble.",
+    "Render the current game as an interactive inline UI with player status, animated dice, board, task card, direct roll/action controls, and a separate character story bubble.",
     "Call this only after new_game, roll, or game_action. Pass the exact game_id so this tool fetches authoritative board/coin/position state itself.",
     "Copy system_text and all task_* fields from the latest engine result without rewriting game facts. story_text is presentation-only roleplay written by the host and never changes game state.",
-    "Keep the original engine tools as the source of truth. Rendering does not complete, skip, swap, settle, or roll a task.",
+    "The widget may call roll and game_action directly after the player clicks a control. Those engine tools remain the source of truth; the UI never invents dice, rewards, or state.",
   ].join(" "),
   inputSchema: {
     game_id: z.string().describe("Exact game_id returned by new_game."),
@@ -927,10 +959,11 @@ tool("render_game", {
   },
   annotations: { readOnlyHint: true, openWorldHint: true },
   _meta: {
-    ui: { resourceUri: GAME_UI_URI },
+    ui: { resourceUri: GAME_UI_URI, visibility: ["model", "app"] },
     "openai/outputTemplate": GAME_UI_URI,
+    "openai/widgetAccessible": true,
     "openai/toolInvocation/invoking": "正在布置游戏界面…",
-    "openai/toolInvocation/invoked": "游戏界面已更新",
+    "openai/toolInvocation/invoked": "互动棋盘已就绪",
   },
 }, async (args) => {
   const game = encodeURIComponent(required(args, "game_id"));
@@ -1007,11 +1040,11 @@ const manualFiles = [
 
 server.registerResource("spicy-monopoly-game-ui", GAME_UI_URI, {
   title: "咲咲与露易丝的大富翁界面",
-  description: "Styled game board, task card, system prompt, and character story bubble.",
+  description: "Interactive game board with direct dice, task, toll, duel, card, identity, and safety controls.",
   mimeType: "text/html;profile=mcp-app",
 }, async () => {
   const [template, avatar] = await Promise.all([
-    readFile(join(__dirname, "game-widget.html"), "utf8"),
+    readFile(join(__dirname, "game-widget-v2.html"), "utf8"),
     readFile(join(__dirname, "assets", "loulou-avatar.png")),
   ]);
   const avatarDataUri = `data:image/png;base64,${avatar.toString("base64")}`;
@@ -1059,7 +1092,7 @@ server.registerPrompt("start_spicy_monopoly", {
         "For each turn, call roll(game_id only), paste board verbatim (copy as-is, never redraw it), read the task in full and follow hint/action_needed, then wait for players to actually do it before rolling again. Choosing 'do the task' is the start, not completion — do not roll (which settles it) just because they agreed; the human's task especially needs real space.",
         "On a final_result tie, players may break it with roll tiebreak=true (one more round each), or accept the tie with a final command from each side.",
         "If a player says stop, redline, 404, or does not want a task, call game_action with action='skip' immediately without asking them to justify it.",
-        "If the players want the styled interface, call render_game after each engine action. Copy engine facts into system/task fields unchanged; put only your own roleplay in story_text.",
+        "If the players want the styled interface, call render_game after new_game. Widget clicks then call roll/game_action and refresh themselves; never duplicate a click. If the model performs an engine action from chat, render_game may resync the board. If a follow-up begins 【互动棋盘已执行，请勿重复调用…】, respond in character without calling any tool.",
         player_names ? `Player/setup notes: ${player_names}` : "",
       ].filter(Boolean).join("\n"),
     },

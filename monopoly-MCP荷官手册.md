@@ -72,7 +72,7 @@
 5. 等玩家说继续、下一轮、ready，再 roll。
 6. 不确定状态时调 `game_info {query:"state", game_id}`，不要猜。
 
-如果玩家启用了美化界面，在引擎调用之后再调 `render_game`。它会用 `game_id` 重新读取权威棋盘、金币和位置；把刚才的 `say/result/hint` 放进 `system_text`，任务字段原样放进对应的 `task_*` 参数，AI 自己扮演角色的文字只放进 `story_text`。`render_game` 只展示，不会结算、跳过、换题或掷下一轮。
+如果玩家启用了互动界面，在 `new_game` 后调 `render_game` 打开棋盘。它会用 `game_id` 重新读取权威棋盘、金币和位置；把刚才的 `say/result/hint` 放进 `system_text`，任务字段原样放进对应的 `task_*` 参数，AI 自己扮演角色的文字只放进 `story_text`。之后界面按钮会直接调用 `roll` / `game_action` 并按真实结果刷新。组件回执若以 `【互动棋盘已执行，请勿重复调用…】` 开头，**不要再调用任何工具**，只接住剧情并等玩家下一次点击。若是 AI 根据聊天文字主动调用引擎，才用 `render_game` 重同步棋盘。
 
 不要发明骰子、任务、金币、赢家、手牌、隐藏淫纹位置、身份效果或棋盘。
 
